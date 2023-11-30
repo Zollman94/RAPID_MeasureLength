@@ -1,0 +1,144 @@
+MODULE mUkazka
+    !
+    !<<<<<<<ABB>>>>>>!
+    !   Programator  !
+    !  Filip Zollman !
+    !   20.11.2023   !
+    !<<<<<<<<>>>>>>>>!
+    !
+    !Robtargety pro mereni
+    LOCAL CONST robtarget pApproach:=[[303.70,383.70,1139.30],[3.59903E-05,-0.999978,0.00659565,-0.000147313],[0,0,1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    LOCAL CONST robtarget pApproach2:=[[303.69,383.70,1139.29],[0.00014563,0.0321809,0.999482,4.05015E-05],[0,0,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !Target2 souzi jako uloziste pro tcp
+    LOCAL PERS robtarget pTarget2:=[[-182.84,18.0002,35.68],[0.707107,1.03797E-09,-4.57201E-09,-0.707106],[0,0,-2,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !Variables pro scitani
+    LOCAL VAR num nSensorDataTemp;
+    LOCAL VAR num nMeasureFront;
+    LOCAL VAR num nSensorData1;
+    LOCAL VAR num nMeasureBack;
+    LOCAL VAR num nSensorData2;
+    LOCAL VAR num nMeasureSum;
+    LOCAL VAR num nLoopCounter;
+    LOCAL VAR num nMovement;
+    LOCAL VAR num nAnswer;
+    LOCAL VAR string strMeasure;
+    LOCAL CONST num nMeasureDelta:=5;
+    !Uloziste delky kusu
+    LOCAL PERS num nMeasureLength{44}:=[317,412,418,300,326,311,0,0,0,0,307,311,317,422,301,0,320,429,429,0,0,0,437,0,0,0,0,0,0,0,437,0,0,0,0,0,0,0,0,0,0,0,310,0];
+    !Robtarget konce senzoru
+    LOCAL PERS robtarget pSenzor1Edge_Fine:=[[-92.84,18,35.68],[0.707107,0,0,0.707107],[0,0,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    !Tool nadefinovany na spodek kusu
+    LOCAL PERS tooldata tSpodekTrafa:=[TRUE,[[65.3753,-15.1929,491.568],[1,0,0,0]],[100,[0,0,500],[1,0,0,0],0,0,0]];
+    LOCAL PROC rMeasureLength()
+        !Najezd
+        MoveJ pApproach,v1000,z50,tool0;
+        !Zmerit predek
+        rMeasureFront2;
+        !180 Otocka
+        MoveJ pApproach2,v1000,z50,tool0;
+        !Zmerit zadek
+        rMeasureBack2;
+        !Secist zapsat a vypsat
+        nMeasureSum:=nMeasureFront+nMeasureBack;
+        TPWrite "Delka trafa je: "\Num:=nMeasureSum;
+        !Test na delku
+        rMeasureTest;
+        rMeasureLogging;
+    ENDPROC
+
+    LOCAL PROC rMeasureFront2()
+        !Mereni kusu ze predu
+        !Nastaveni toolu na mereni vuci svorkovnici
+        tSpodekTrafa.tframe.trans.z:=591.568;
+        pSenzor1Edge_Fine.robconf:=[0,0,1,0];
+        MoveL RelTool(pSenzor1Edge_Fine,0,250,0),v200,z1,tSpodekTrafa\WObj:=wSenzor1;
+        nMovement:=0;
+        nSensorDataTemp:=0;
+        nLoopCounter:=0;
+        WHILE nSensorDataTemp<2 AND nLoopCounter<8 DO
+            MoveL RelTool(pSenzor1Edge_Fine,0,210+nMovement,0),v50,fine,tSpodekTrafa\WObj:=wSenzor1;
+            WaitTime\InPos,0.5;
+            nSensorDataTemp:=GInput(giMereni1);
+            nMovement:=nMovement-40;
+            Incr nLoopCounter;
+        ENDWHILE
+        pTarget2:=CRobT(\tool:=tSpodekTrafa);
+        WaitTime 0.5;
+        MoveL RelTool(pSenzor1Edge_Fine,0,250,0),v200,z1,tSpodekTrafa\WObj:=wSenzor1;
+        nSensorData1:=nSensorDataTemp/10;
+        nMeasureFront:=Distance(pSenzor1Edge_Fine.trans,pTarget2.trans);
+        nMeasureFront:=nMeasureFront+nSensorData1;
+        !Break;
+        MoveL pApproach,v1000,z50,tool0;
+    ENDPROC
+
+    LOCAL PROC rMeasureBack2()
+        !Mereni kusu ze zadu
+        !Nastaveni toolu vuci zadku trafa (Od spodku 100mm)
+        tSpodekTrafa.tframe.trans.z:=491.568;
+        pSenzor1Edge_Fine.robconf:=[0,0,-1,0];
+        MoveL RelTool(pSenzor1Edge_Fine,0,250,0\Rz:=180),v200,z1,tSpodekTrafa\WObj:=wSenzor1;
+        !MoveL pLengthInPosBack,v200,fine,tGripperStred;
+        nMovement:=0;
+        nSensorDataTemp:=0;
+        nLoopCounter:=0;
+        WHILE nSensorDataTemp<2 AND nLoopCounter<8 DO
+            MoveL RelTool(pSenzor1Edge_Fine,0,250+nMovement,0\Rz:=180),v50,fine,tSpodekTrafa\WObj:=wSenzor1;
+            !MoveL RelTool(pLengthInPosBack,0,40+nMovement,0),v100,fine,tGripperStred;
+            WaitTime\InPos,0.5;
+            nSensorDataTemp:=GInput(giMereni1);
+            nMovement:=nMovement-40;
+            Incr nLoopCounter;
+        ENDWHILE
+        pTarget2:=CRobT(\tool:=tSpodekTrafa);
+        WaitTime 0.5;
+        MoveL RelTool(pSenzor1Edge_Fine,0,250,0\Rz:=180),v200,z1,tSpodekTrafa\WObj:=wSenzor1;
+        nSensorData2:=nSensorDataTemp/10;
+        nMeasureBack:=Distance(pSenzor1Edge_Fine.trans,pTarget2.trans);
+        nMeasureBack:=nMeasureBack+nSensorData2;
+        !Break;
+        MoveL pApproach2,v1000,z50,tool0;
+        MoveJ pApproach,v1000,z50,tool0;
+        !Break;
+    ENDPROC
+
+    LOCAL PROC rMeasureLengthError()
+        VAR btnres answer;
+        VAR string my_message{5}:=["Namerena delka kusu neodpovida","nastavene toleranci.","Mam kus vyhodit z bunky?"," "," "];
+        CONST string my_buttons{2}:=["Pokracovat","Vyhodit"];
+        my_message{4}:="Ocekavam:"+NumToStr(nMeasureLength{nProgramNr},0)+" / Namereno:"+NumToStr(nMeasureSum,0);
+        my_message{5}:="Aktualni program:"+NumToStr(nProgramNr,0);
+        answer:=UIMessageBox(
+        \Header:="Chyba mereni delky!"
+        \MsgArray:=my_message
+        \BtnArray:=my_buttons
+        \Icon:=iconWarning);
+        IF answer=1 THEN
+            ! Operator selection Ignorovat
+        ELSEIF answer=2 THEN
+            rExitAuto;
+            ExitCycle;
+        ENDIF
+    ENDPROC
+
+    LOCAL PROC rMeasureTest()
+        !Test tolerance delky
+        IF nMeasureSum>=nMeasureLength{nProgramNr}-nMeasureDelta AND nMeasureSum<=nMeasureLength{nProgramNr}+nMeasureDelta THEN
+        ELSE
+            rMeasureLengthError;
+        ENDIF
+    ENDPROC
+
+    LOCAL PROC rMeasureLogging()
+        !Zapis do .txt
+        strAktuJob:=NumToStr(nProgramNr,0);
+        strAktuMereni1:=NumToStr(nMeasureSum,0);
+        Open "HOME:/LogDir/"\File:="Length.doc",InfoLogMereni\Append;
+        IF bDoprL=TRUE THEN
+            Write InfoLogMereni,strAktuJob+";"+strAktuMereni1+";"+"LevyPas";
+        ELSE
+            Write InfoLogMereni,strAktuJob+";"+strAktuMereni1+";"+"PravyPas";
+        ENDIF
+        Close InfoLogMereni;
+    ENDPROC
+ENDMODULE
